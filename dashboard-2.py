@@ -11,9 +11,11 @@ from datetime import datetime
 import warnings
 import os
 
+# ==========================================
 # 1. KONFIGURASI HALAMAN & GLOBAL
+# ==========================================
 st.set_page_config(
-    page_title="The Avicenna : Class Monitoring Dashboard",
+    page_title="The Avicenna Dashboard",
     page_icon="🏫",
     layout="wide"
 )
@@ -26,12 +28,14 @@ MQTT_BROKER = "broker.hivemq.com" # Menggunakan public broker yang sama dengan E
 MQTT_PORT = 1883
 TOPIC_SENSOR = "kelas/data"      # Disesuaikan dengan ESP32 (topic publish)
 TOPIC_CONTROL = "kelas/kontrol"  # (Tidak digunakan karena kontrol manual dihapus)
-MODEL_FILENAME = "FinalProject3_KNN_Avicenna.pkl"
+MODEL_FILENAME = "Model_KNN_Avicenna.pkl"
 OWM_API_KEY = "4b031f7ed240d398ab4b7696d2361d97"
 CITY_NAME = "Sukabumi,ID"
 CSV_LOG_FILE = "live_data_dashboard.csv"
 
+# ==========================================
 # 2. FUNGSI-FUNGSI LOGIKA (ML & API)
+# ==========================================
 
 # Load Model ML
 @st.cache_resource
@@ -71,8 +75,9 @@ def save_to_csv(data_dict):
     else:
         df_new.to_csv(CSV_LOG_FILE, mode='a', header=False, index=False)
 
-
+# ==========================================
 # 3. SETUP MQTT CLIENT
+# ==========================================
 
 def on_message(client, userdata, msg):
     try:
@@ -82,11 +87,13 @@ def on_message(client, userdata, msg):
         
         data = json.loads(payload)
         
-
+        # Mapping data JSON dari ESP32 (suhu/kelembaban) ke format dashboard
+        # ESP32 mengirim: {"suhu": 25.0, "kelembaban": 60.0}
+        # Dashboard butuh: temp, hum, lux (lux kita set default 0 jika tidak ada)
         processed_data = {
             "temp": data.get("temp", 0),
             "hum": data.get("hum", 0),
-            "lux": data.get("lux", 0) 
+            "lux": data.get("lux", 0) # Default 0 karena DHT22 tidak baca cahaya
         }
         
         q = get_data_queue()
@@ -107,13 +114,15 @@ def start_mqtt_client():
         st.error(f"Gagal koneksi MQTT: {e}")
         return None
 
+# ==========================================
 # 4. TAMPILAN DASHBOARD (SIDEBAR & MAIN)
+# ==========================================
 
 # --- SIDEBAR CONFIGURATION ---
 with st.sidebar:
-    st.image("https://wp-umbrella.com/wp-content/uploads/2021/06/monitoring.png", width=125)
+    st.image("https://wp-umbrella.com/wp-content/uploads/2021/06/monitoring.png", width=100)
     st.title("The Avicenna")
-    st.subheader("Panel Class Monitoring")
+    st.subheader("Panel Monitoring")
     
     # Info Cuaca
     st.divider()
@@ -147,7 +156,7 @@ with st.sidebar:
 
 # --- MAIN PAGE ---
 st.title("🏫 Class Monitoring System")
-st.markdown("Dashboard untuk monitoring suhu, kelembaban, dan kenyamanan kelas secara real-time.")
+st.markdown("Dashboard monitoring suhu, kelembaban, dan kenyamanan kelas secara real-time.")
 st.divider()
 
 # Inisialisasi Queue & Session State
@@ -224,15 +233,15 @@ while True:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("🌡️ Suhu Kelas", f"{last_row['Temp_In']} °C", f"{last_row['Temp_In'] - last_row['Temp_Out']:.1f}°C vs Luar")
         c2.metric("💧 Kelembaban", f"{last_row['Hum_In']} %")
-        c3.metric("💡 Cahaya", f"{last_row['Lux_In']} ")
+        c3.metric("💡 Cahaya", f"{last_row['Lux_In']} Lux")
         
         # Ikon Status AI
         if status == "Panas": 
-            c4.metric("🧠 Prediksi Kenyamanan Kelas", status, "Panas (Tidak Nyaman)", delta_color="inverse")
+            c4.metric("🧠 Status AI", status, "Bahaya", delta_color="inverse")
         elif status == "Dingin":
-            c4.metric("🧠 Prediksi Kenyamanan Kelas", status, "Dingin", delta_color="normal")
+            c4.metric("🧠 Status AI", status, "Dingin", delta_color="normal")
         else:
-            c4.metric("🧠 Prediksi Kenyamanan Kelas", status, "Nyaman")
+            c4.metric("🧠 Status AI", status, "Nyaman")
 
         # --- GRAFIK TERPISAH (DETAIL) ---
         st.subheader("📈 Analisis Real-time")
@@ -260,7 +269,7 @@ while True:
 
         with col_g2:
             fig_lux = px.line(df_chart, x="Timestamp", y="Lux_In", 
-                              title="Intensitas Cahaya", markers=True,
+                              title="Intensitas Cahaya (Lux)", markers=True,
                               color_discrete_sequence=["#FFC107"])
             fig_lux.update_layout(height=300, hovermode="x unified")
             st.plotly_chart(fig_lux, width="stretch", key=f"chart_lux_{unique_key}")
